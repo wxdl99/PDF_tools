@@ -309,9 +309,9 @@ class PdfMergerApp(tk.Tk):
                     )
                 result = operation.run()
             except Exception as exc:
-                self.after(0, lambda: self.on_merge_failed(exc))
+                self.after(0, lambda error=exc: self.on_merge_failed(error))
             else:
-                self.after(0, lambda: self.on_operation_success(result, is_compress))
+                self.after(0, lambda operation_result=result, compress=is_compress: self.on_operation_success(operation_result, compress))
 
         threading.Thread(target=worker, daemon=True).start()
 
