@@ -13,6 +13,24 @@ class MergeOptions:
     keep_metadata: bool = True
 
 
+@dataclass(frozen=True)
+class CompressOptions:
+    output_path: Path
+    target_size_mb: float = 10.0
+    remove_metadata: bool = True
+
+
+@dataclass(frozen=True)
+class PdfOperationResult:
+    output_path: Path
+    output_size_bytes: int
+    target_size_bytes: int | None = None
+
+    @property
+    def is_over_target(self) -> bool:
+        return self.target_size_bytes is not None and self.output_size_bytes > self.target_size_bytes
+
+
 class PdfMergeError(Exception):
     def __init__(self, code: str, **details: object):
         super().__init__(code)
@@ -23,7 +41,7 @@ class PdfMergeError(Exception):
 class PdfOperation(Protocol):
     name: str
 
-    def run(self) -> None:
+    def run(self) -> PdfOperationResult:
         ...
 
 
@@ -34,7 +52,7 @@ class MergePdfOperation:
         self.pdf_paths = [Path(path) for path in pdf_paths]
         self.options = options
 
-    def run(self) -> None:
+    def run(self) -> PdfOperationResult:
         if len(self.pdf_paths) < 2:
             raise PdfMergeError("error_min_files")
 
@@ -60,6 +78,49 @@ class MergePdfOperation:
         with self.options.output_path.open("wb") as output_file:
             writer.write(output_file)
 
+        return PdfOperationResult(
+            output_path=self.options.output_path,
+            output_size_bytes=self.options.output_path.stat().st_size,
+        )
+
+
+class CompressPdfOperation:
+    name = "compress"
+
+    def __init__(self, pdf_path: Path, options: CompressOptions):
+        self.pdf_path = Path(pdf_path)
+        self.options = options
+
+    def run(self) -> PdfOperationResult:
+        if not self.pdf_path.exists():
+            raise PdfMergeError("error_missing_file", path=self.pdf_path)
+
+        if self.options.target_size_mb <= 0:
+            raise PdfMergeError("error_invalid_target_size")
+
+        reader = PdfReader(str(self.pdf_path))
+        if reader.is_encrypted:
+            raise PdfMergeError("error_encrypted_pdf", name=self.pdf_path.name)
+
+        writer = PdfWriter()
+        for page in reader.pages:
+            page.compress_content_streams()
+            writer.add_page(page)
+
+        if not self.options.remove_metadata and reader.metadata:
+            writer.add_metadata(dict(reader.metadata))
+
+        self.options.output_path.parent.mkdir(parents=True, exist_ok=True)
+        with self.options.output_path.open("wb") as output_file:
+            writer.write(output_file)
+
+        target_size_bytes = int(self.options.target_size_mb * 1024 * 1024)
+        return PdfOperationResult(
+            output_path=self.options.output_path,
+            output_size_bytes=self.options.output_path.stat().st_size,
+            target_size_bytes=target_size_bytes,
+        )
+
 
 class PdfOperationRegistry:
     def __init__(self) -> None:
@@ -74,3 +135,4 @@ class PdfOperationRegistry:
 
 operation_registry = PdfOperationRegistry()
 operation_registry.register(MergePdfOperation)
+operation_registry.register(CompressPdfOperation)

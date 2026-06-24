@@ -1,24 +1,26 @@
-# PDF Merger / PDF 合并工具
+# PDF Tools / PDF 工具
 
-A small desktop app for merging multiple PDF files into one output file.
+A small desktop app for merging PDF files and reducing PDF file size.
 
-一个用于将多个 PDF 文件合并成一个文件的桌面小工具。
+一个用于合并 PDF 文件、减小 PDF 文件体积的桌面小工具。
 
 ## Features / 功能
 
 - Add multiple PDF files.
 - Merge files in the order shown in the list.
+- Compress a single PDF and check whether it is under the target size, such as 10 MB.
 - Remove files, clear the list, and move files up or down.
 - Choose a custom output location.
 - Switch the UI between Chinese and English.
-- Keep metadata from the first PDF by default.
+- Keep or remove PDF metadata.
 
 - 添加多个 PDF 文件。
 - 按列表顺序合并文件。
+- 压缩单个 PDF，并检查是否小于目标大小，例如 10 MB。
 - 支持移除、清空、上移和下移。
 - 自定义输出位置。
 - 支持中文和英文界面切换。
-- 默认保留第一个 PDF 的元数据。
+- 支持保留或移除 PDF 元数据。
 
 ## Quick Start / 快速开始
 
@@ -52,11 +54,19 @@ The core PDF logic is separated from the UI so new operations can be added later
 
 - `PdfOperation`: operation protocol.
 - `MergePdfOperation`: current merge implementation.
-- `PdfOperationRegistry`: registry for future operations such as splitting, compression, and watermarking.
+- `CompressPdfOperation`: current compression implementation.
+- `PdfOperationRegistry`: registry for future operations such as splitting, image downsampling, and watermarking.
 
 - `PdfOperation`：操作协议。
 - `MergePdfOperation`：当前合并实现。
-- `PdfOperationRegistry`：用于注册拆分、压缩、加水印等后续操作。
+- `CompressPdfOperation`：当前压缩实现。
+- `PdfOperationRegistry`：用于注册拆分、图片降采样、加水印等后续操作。
+
+## Compression Notes / 压缩说明
+
+The current compression mode rewrites the PDF, compresses page content streams, and can remove metadata. This is safe for normal PDFs, but it cannot always force image-heavy scanned PDFs below a target such as 10 MB. The app will show the final file size and warn you if the output is still larger than the target.
+
+当前压缩模式会重写 PDF、压缩页面内容流，并可移除元数据。这个方式对普通 PDF 比较稳妥，但如果文件主要由大图片或扫描页组成，不一定能强制压到 10 MB 以下。软件会显示最终文件大小，如果仍超过目标大小会给出提醒。
 
 ## License / 许可证
 
