@@ -57,6 +57,8 @@ TEXT = {
         "error_missing_file": "文件不存在：{path}",
         "error_encrypted_pdf": "暂不支持加密 PDF：{name}",
         "error_invalid_target_size": "目标大小必须大于 0。",
+        "error_missing_compression_dependency": "缺少强力压缩依赖，请重新运行 run.bat 安装依赖。",
+        "error_compression_failed": "压缩失败，未能生成有效输出文件。",
     },
     "en": {
         "app_title": "PDF Tools",
@@ -104,6 +106,8 @@ TEXT = {
         "error_missing_file": "File does not exist: {path}",
         "error_encrypted_pdf": "Encrypted PDFs are not supported yet: {name}",
         "error_invalid_target_size": "Target size must be greater than 0.",
+        "error_missing_compression_dependency": "Missing compression dependency. Run run.bat again to install dependencies.",
+        "error_compression_failed": "Compression failed. No valid output file was generated.",
     },
 }
 

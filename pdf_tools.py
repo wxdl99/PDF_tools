@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import shutil
+import tempfile
 from typing import Iterable, Protocol
 
 from pypdf import PdfReader, PdfWriter
@@ -104,8 +106,8 @@ class CompressPdfOperation:
 
         writer = PdfWriter()
         for page in reader.pages:
-            page.compress_content_streams()
             writer.add_page(page)
+            writer.pages[-1].compress_content_streams()
 
         if not self.options.remove_metadata and reader.metadata:
             writer.add_metadata(dict(reader.metadata))
@@ -115,11 +117,69 @@ class CompressPdfOperation:
             writer.write(output_file)
 
         target_size_bytes = int(self.options.target_size_mb * 1024 * 1024)
+        if self.options.output_path.stat().st_size > target_size_bytes:
+            self._write_downsampled_pdf(target_size_bytes)
+
         return PdfOperationResult(
             output_path=self.options.output_path,
             output_size_bytes=self.options.output_path.stat().st_size,
             target_size_bytes=target_size_bytes,
         )
+
+    def _write_downsampled_pdf(self, target_size_bytes: int) -> None:
+        try:
+            import fitz
+        except ImportError as exc:
+            raise PdfMergeError("error_missing_compression_dependency") from exc
+
+        profiles = [
+            (150, 76),
+            (130, 72),
+            (110, 68),
+            (96, 64),
+            (82, 58),
+            (72, 52),
+        ]
+        best_path: Path | None = None
+        best_size: int | None = None
+
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            temp_dir = Path(temp_dir_name)
+            for dpi, jpeg_quality in profiles:
+                candidate = temp_dir / f"compressed_{dpi}_{jpeg_quality}.pdf"
+                self._render_image_pdf(candidate, dpi=dpi, jpeg_quality=jpeg_quality, fitz=fitz)
+                candidate_size = candidate.stat().st_size
+
+                if best_size is None or candidate_size < best_size:
+                    best_path = candidate
+                    best_size = candidate_size
+
+                if candidate_size <= target_size_bytes:
+                    best_path = candidate
+                    break
+
+            if best_path is None:
+                raise PdfMergeError("error_compression_failed")
+
+            shutil.copyfile(best_path, self.options.output_path)
+
+    def _render_image_pdf(self, output_path: Path, dpi: int, jpeg_quality: int, fitz: object) -> None:
+        source_doc = fitz.open(str(self.pdf_path))
+        output_doc = fitz.open()
+        zoom = dpi / 72
+        matrix = fitz.Matrix(zoom, zoom)
+
+        try:
+            for source_page in source_doc:
+                pixmap = source_page.get_pixmap(matrix=matrix, alpha=False, colorspace=fitz.csRGB)
+                jpeg_bytes = pixmap.tobytes("jpeg", jpg_quality=jpeg_quality)
+                output_page = output_doc.new_page(width=source_page.rect.width, height=source_page.rect.height)
+                output_page.insert_image(output_page.rect, stream=jpeg_bytes)
+
+            output_doc.save(str(output_path), garbage=4, deflate=True)
+        finally:
+            output_doc.close()
+            source_doc.close()
 
 
 class PdfOperationRegistry:
